@@ -245,15 +245,15 @@ foreach ($paginator as $page) {
 The paginator is particularly suitable for GraphQL/Relay pagination, since
 it provides cursors for the pages and items.
 
-- For pages: Use startCuror() / endCursor() on the PaginatorPageInterface.
+- For pages: Use firstCursor() / lastCursor() on the PaginatorPageInterface.
 - For items: Use getCursor() on the PaginatorPageItemInterface.
 
 ``` php
 <?php
 
 foreach ($paginator as $page) {
-    $startCursor = $page->startCursor();
-    $endCursor = $page->endCursor();
+    $startCursor = $page->firstCursor();
+    $endCursor = $page->lastCursor();
     foreach ($page->items() as $item) {
         $itemCursor = $item->getCursor();
     }
