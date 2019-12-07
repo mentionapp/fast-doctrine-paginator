@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<project name="fast-doctrine-paginator" default="check">
+    <target name="check" depends="
+        composer-validate,
+        composer-install,
+        phpcs,
+        php-cs-fixer,
+        phpstan,
+        phpunit
+    "/>
+
+    <target name="composer-validate">
+        <exec   executable="composer"
+                logoutput="true"
+                passthru="true"
+                checkreturn="true"
+        >
+            <arg value="validate"/>
+            <arg value="--ansi"/>
+        </exec>
+    </target>
+
+    <target name="composer-install">
+        <exec
+                executable="composer"
+                logoutput="true"
+                passthru="true"
+                checkreturn="true"
+        >
+            <arg value="install"/>
+            <arg value="--ansi"/>
+        </exec>
+    </target>
+
+    <target name="phpcs">
+        <exec
+                executable="vendor/bin/phpcs"
+                logoutput="true"
+                passthru="true"
+                checkreturn="true"
+        >
+            <arg value="--colors" />
+            <arg value="--standard=PSR2" />
+            <arg value="--extensions=php" />
+            <arg value="--ignore=vendor" />
+            <arg value="--report=full" />
+            <arg value="-n" />
+            <arg value="-v" />
+            <arg path="." />
+        </exec>
+    </target>
+
+    <target name="php-cs-fixer">
+        <exec
+                executable="vendor/bin/php-cs-fixer"
+                logoutput="true"
+                passthru="true"
+                checkreturn="true"
+        >
+            <arg value="fix"/>
+            <arg value="--dry-run"/>
+            <arg value="--diff"/>
+        </exec>
+    </target>
+
+    <target name="phpstan">
+        <exec
+                executable="vendor/bin/phpstan"
+                logoutput="true"
+                passthru="true"
+                checkreturn="true"
+        >
+            <arg value="analyze"/>
+            <arg value="--no-progress"/>
+            <arg path="."/>
+        </exec>
+    </target>
+
+    <target name="phpunit">
+        <exec 
+                executable="vendor/bin/phpunit"
+                logoutput="true"
+                passthru="true"
+                checkreturn="true"
+        >
+            <arg path="tests"/>
+        </exec>
+    </target>
+</project>

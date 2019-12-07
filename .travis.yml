@@ -1,0 +1,32 @@
+dist: xenial
+language: php
+
+php:
+  - '7.2'
+  - '7.3'
+  - '7.4'
+  - nightly
+
+env:
+  matrix:
+    - dependencies=lowest
+    - dependencies=highest
+
+matrix:
+  allow_failures:
+    - php: nightly
+
+install:
+  - if [ "$dependencies" = "lowest" ]; then composer update --prefer-lowest --no-interaction; fi
+  - if [ "$dependencies" = "highest" ]; then composer update --no-interaction; fi
+
+before_script:
+  - if php --ri xdebug >/dev/null; then phpenv config-rm xdebug.ini; fi
+
+script:
+  - vendor/bin/phing
+
+cache:
+  directories:
+    - $HOME/.composer/cache
+    - tmp

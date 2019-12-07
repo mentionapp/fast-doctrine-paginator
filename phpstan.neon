@@ -1,0 +1,14 @@
+includes:
+    - vendor/phpstan/phpstan-beberlei-assert/extension.neon
+    - vendor/phpstan/phpstan-mockery/extension.neon
+    - vendor/phpstan/phpstan-strict-rules/rules.neon
+
+parameters:
+    level: 8
+    excludes_analyse:
+        - %rootDir%/../../../vendor/*
+    ignoreErrors:
+        -
+            message: '#Variable method call on object.#'
+            path: src/PageDiscriminator.php
+
