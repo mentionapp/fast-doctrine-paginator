@@ -3,6 +3,11 @@
 This package provides a fast, no-offset, Doctrine paginator that's suitable for infinite
 scrolling, batch jobs, and GraphQL/Relay pagination.
 
+[![Build Status](https://travis-ci.org/mentionapp/fast-doctrine-paginator.svg?branch=master)](https://travis-ci.org/mentionapp/fast-doctrine-paginator)
+[![Latest Version](https://poser.pugx.org/mention/fast-doctrine-paginator/v/stable?_)](https://packagist.org/packages/mention/fast-doctrine-paginator)
+[![MIT License](https://poser.pugx.org/mention/fast-doctrine-paginator/license?_)](https://choosealicense.com/licenses/mit/)
+[![PHPStan Enabled](https://img.shields.io/badge/PHPStan-enabled-brightgreen.svg?style=flat)](https://github.com/phpstan/phpstan)
+
 ## Why use this paginator ?
 
 ### It is fast
