@@ -11,4 +11,11 @@ parameters:
         -
             message: '#Variable method call on object.#'
             path: src/PageDiscriminator.php
+            count: 1
+        -
+            # Doctrine 2.5 type hint issue
+            message: '#Call to static method Assert\\Assertion::notNull.. with int and .Query must have a…. will always evaluate to true#'
+            path: src/DoctrinePaginator.php
+            count: 1
+    reportUnmatchedIgnoredErrors: false
 
