@@ -1,6 +1,6 @@
 # Fast Doctrine Paginator
 
-This package provides a fast Doctrine paginator that's suitable for infinite
+This package provides a fast, no-offset, Doctrine paginator that's suitable for infinite
 scrolling, batch jobs, and GraphQL/Relay pagination.
 
 ## Why use this paginator ?
