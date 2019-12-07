@@ -12,7 +12,7 @@ rather than limit/offset. Learn more at https://use-the-index-luke.com/no-offset
 
 In addition to that, it lets the user write its own optimised queries.
 
-### Suitable for batch jobs
+### It is suitable for batch jobs
 
 Batch jobs over Doctrine queries typically have two problems:
 
@@ -26,7 +26,7 @@ Using this paginator solves these two problems:
 - By clearing the entity manager after each page, we keep the number of managed
   entities under control.
 
-### Suitable for GraphQL/Relay
+### It is suitable for GraphQL/Relay
 
 GraphQL/Relay style pagination requires fine-grained cursors that point to the
 beginning and end of a page, as well as to each item in a page. This paginator
@@ -36,16 +36,16 @@ A paginator instance is an iterator over pages of items. This allows to act
 before and after every page, for example to clear an entity manager or to
 manage transactions.
 
-### Suitable for infinite scrolling
+### It is suitable for infinite scrolling
 
 Every page will be as fast as the previous one.
 
 ## Why NOT use this paginator ?
 
 This paginator is cursor-based, so it may not be suitable for you if you need to
-display a numeric list of pages (although this could be emulated).
+access a page by number (although this could be emulated).
 
-### Usage
+## Usage
 
 Here is a typical example:
 
@@ -59,7 +59,7 @@ $query = $entityManager->createQuery('
     ORDER    BY u.id ASC
 ');
 
-// Max results per page
+// Number of items per page
 $query->setMaxResults(3);
 
 $paginator = DoctrinePaginatorBuilder::new()
@@ -117,23 +117,14 @@ paginator calls `setParameter()` on the query to set these values.
 
 Examples with a Users table:
 
-+-------+--------------+------+-----+---------+----------------+
-| Field | Type         | Null | Key | Default | Extra          |
-+-------+--------------+------+-----+---------+----------------+
-| id    | int(11)      | NO   | PRI | NULL    | auto_increment |
-| name  | varchar(255) | NO   |     | NULL    |                |
-+-------+--------------+------+-----+---------+----------------+
-
-+----+---------+
 | id | name    |
-+----+---------+
+|----|---------|
 |  1 | Jackson |
 |  2 | Sophia  |
 |  3 | Aiden   |
 |  4 | Olivia  |
 |  5 | Lucas   |
 |  6 | Ava     |
-+----+---------+
 
 If we sort by id, we can use id as discriminator, because it's unique.
 
@@ -175,29 +166,22 @@ foreach ($paginator as $page) {
 
 The first page will return this:
 
-```
-+----+---------+
 | id | name    |
-+----+---------+
+|----|---------|
 |  1 | Jackson |
 |  2 | Sophia  |
 |  3 | Aiden   |
-+----+---------+
-```
 
 The paginator retains `id=3` as cursor internally. Before requesting the
 next page, the paginator calls `setParameter('idCursor', 3)` on the query.
 As expected, the second page returns this:
 
-```
-+----+--------+
 | id | name   |
-+----+--------+
+|----|--------|
 |  4 | Olivia |
 |  5 | Lucas  |
 |  6 | Ava    |
-+----+--------+
-```
+
 
 #### Sorting by name:
 
