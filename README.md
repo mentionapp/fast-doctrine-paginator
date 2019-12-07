@@ -23,8 +23,7 @@ Batch jobs over Doctrine queries typically have two problems:
 Using this paginator solves these two problems:
 
 - By using a paginated query, we avoid fetching too many items at once
-- By clearing the entity manager after each page, we keep the number of managed
-  entities under control.
+- By giving the opportunity to act before and after each page, the paginator gives a safe point where the entity manager can be cleared, in order to keep the number of managed entities under control
 
 ### It is suitable for GraphQL/Relay
 
@@ -32,15 +31,11 @@ GraphQL/Relay style pagination requires fine-grained cursors that point to the
 beginning and end of a page, as well as to each item in a page. This paginator
 provides that.
 
-A paginator instance is an iterator over pages of items. This allows to act
-before and after every page, for example to clear an entity manager or to
-manage transactions.
-
 ### It is suitable for infinite scrolling
 
 Every page will be as fast as the previous one.
 
-## Why NOT use this paginator ?
+## When _not_ to use this paginator ?
 
 This paginator is cursor-based, so it may not be suitable for you if you need to
 access a page by number (although this could be emulated).
@@ -94,8 +89,8 @@ internal cursor that can be used to fetch the next page.
 For this to work effectively and flawlessly, the following
 conditions must be true:
 
-- The column(s) used for discrimination must be unique (if it's not the case,
-  a combination of multiple discriminators must be used)
+- The column used for discrimination must be unique (if it's not the case,
+  a combination of multiple columns must be used)
 - The query must be ordered by the discrimination columns
 - The query must have a WHERE clause that selects only rows whose
   discriminators are higher than the higher discriminators of the previous
