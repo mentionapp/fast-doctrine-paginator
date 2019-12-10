@@ -8,6 +8,12 @@ scrolling, batch jobs, and GraphQL/Relay pagination.
 [![MIT License](https://poser.pugx.org/mention/fast-doctrine-paginator/license?_)](https://choosealicense.com/licenses/mit/)
 [![PHPStan Enabled](https://img.shields.io/badge/PHPStan-enabled-brightgreen.svg?style=flat)](https://github.com/phpstan/phpstan)
 
+## Install
+
+```
+composer require mention/fast-doctrine-paginator
+```
+
 ## Why use this paginator ?
 
 ### It is fast
@@ -203,7 +209,7 @@ $query = $entityManager->createQuery('
     ORDER    BY u.name ASC, u.id ASC
 ');
 
-$paginator = (new DoctrinePaginatorBuilder())
+$paginator = DoctrinePaginatorBuilder::new()
     ->setQuery($query)
     ->setDiscriminators([
         new PageDiscriminator('nameCursor', 'getName'),
@@ -264,3 +270,7 @@ foreach ($paginator as $page) {
     }
 }
 ```
+
+## Authors
+
+The [Mention](https://mention.com) team and contributors
