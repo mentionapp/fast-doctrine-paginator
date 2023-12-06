@@ -46,6 +46,10 @@ provides that.
 
 Every page will be as fast as the previous one.
 
+### It is type safe
+
+The paginator is fully typed and supports [phpstan-doctrine](https://github.com/phpstan/phpstan-doctrine)'s static type inference of query results.
+
 ## When _not_ to use this paginator ?
 
 This paginator is cursor-based, so it may not be suitable for you if you need to
