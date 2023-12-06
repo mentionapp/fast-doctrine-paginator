@@ -68,8 +68,7 @@ $query = $entityManager->createQuery('
 // Number of items per page
 $query->setMaxResults(3);
 
-$paginator = DoctrinePaginatorBuilder::new()
-    ->setQuery($query)
+$paginator = DoctrinePaginatorBuilder::fromQuery($query)
     ->setDiscriminators([
         new PageDiscriminator('idCursor', 'getId'),
     ])
@@ -155,8 +154,7 @@ $query = $entityManager->createQuery('
 // Max results per page
 $query->setMaxResults(3);
 
-$paginator = DoctrinePaginatorBuilder::new()
-    ->setQuery($query)
+$paginator = DoctrinePaginatorBuilder::fromQuery($query)
     ->setDiscriminators([
         new PageDiscriminator('idCursor', 'getId'),
     ])
@@ -209,8 +207,7 @@ $query = $entityManager->createQuery('
     ORDER    BY u.name ASC, u.id ASC
 ');
 
-$paginator = DoctrinePaginatorBuilder::new()
-    ->setQuery($query)
+$paginator = DoctrinePaginatorBuilder::fromQuery($query)
     ->setDiscriminators([
         new PageDiscriminator('nameCursor', 'getName'),
         new PageDiscriminator('idCursor', 'getId'),
