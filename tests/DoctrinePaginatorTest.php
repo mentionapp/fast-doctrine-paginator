@@ -2,14 +2,17 @@
 
 namespace Mention\FastDoctrinePaginator\Tests;
 
+use Doctrine\ORM\AbstractQuery;
 use Doctrine\ORM\EntityManager;
 use Doctrine\ORM\Query;
 use Doctrine\ORM\Tools\SchemaTool;
 use Doctrine\ORM\Tools\Setup;
 use Mention\FastDoctrinePaginator\DoctrinePaginator;
 use Mention\FastDoctrinePaginator\DoctrinePaginatorBuilder;
+use Mention\FastDoctrinePaginator\Internal\TypedQuery;
 use Mention\FastDoctrinePaginator\PageDiscriminator;
 use Mention\FastDoctrinePaginator\Tests\Data\User;
+use Mention\WebBundle\Tests\WebTestCase;
 use PHPUnit\Framework\TestCase;
 
 class DoctrinePaginatorTest extends TestCase
@@ -49,15 +52,14 @@ class DoctrinePaginatorTest extends TestCase
 
         $query->setMaxResults(2);
 
-        $paginator = DoctrinePaginatorBuilder::new()
-            ->setQuery($query)
+        $paginator = DoctrinePaginatorBuilder::fromQuery($query)
             ->setDiscriminators([
                 new PageDiscriminator('id', 'id'),
             ])
-            ->setHydrationMode(Query::HYDRATE_ARRAY)
+            ->withHydrationMode(Query::HYDRATE_ARRAY)
             ->build();
 
-        $pages = iterator_to_array($paginator->getIterator());
+        $pages = [...$paginator];
 
         self::assertCount(2, $pages);
 
@@ -102,15 +104,14 @@ class DoctrinePaginatorTest extends TestCase
 
         $query->setMaxResults(2);
 
-        $paginator = DoctrinePaginatorBuilder::new()
-            ->setQuery($query)
+        $paginator = DoctrinePaginatorBuilder::fromQuery($query)
             ->setDiscriminators([
                 new PageDiscriminator('id', 'getId'),
             ])
-            ->setHydrationMode(Query::HYDRATE_OBJECT)
+            ->withHydrationMode(Query::HYDRATE_OBJECT)
             ->build();
 
-        $pages = iterator_to_array($paginator->getIterator());
+        $pages = [...$paginator];
 
         self::assertCount(2, $pages);
 
@@ -130,6 +131,7 @@ class DoctrinePaginatorTest extends TestCase
             $pages[1]()
         );
     }
+
 
     public function testResumeAtCursor(): void
     {
@@ -155,30 +157,28 @@ class DoctrinePaginatorTest extends TestCase
 
         $query = $em->createQuery($dql)->setMaxResults(2);
 
-        $paginator = DoctrinePaginatorBuilder::new()
-            ->setQuery($query)
+        $paginator = DoctrinePaginatorBuilder::fromQuery($query)
             ->setDiscriminators([
                 new PageDiscriminator('id', 'getId'),
             ])
-            ->setHydrationMode(Query::HYDRATE_OBJECT)
+            ->withHydrationMode(Query::HYDRATE_OBJECT)
             ->build();
 
-        $pages = iterator_to_array($paginator->getIterator());
+        $pages = [...$paginator];
 
         $cursor = $pages[0]->lastCursor();
 
         $query = $em->createQuery($dql)->setMaxResults(2);
 
-        $paginator = DoctrinePaginatorBuilder::new()
-            ->setQuery($query)
+        $paginator = DoctrinePaginatorBuilder::fromQuery($query)
             ->setDiscriminators([
                 new PageDiscriminator('id', 'getId'),
             ])
-            ->setHydrationMode(Query::HYDRATE_OBJECT)
+            ->withHydrationMode(Query::HYDRATE_OBJECT)
             ->setCursor($cursor)
             ->build();
 
-        $pages = iterator_to_array($paginator->getIterator());
+        $pages = [...$paginator];
 
         self::assertCount(1, $pages);
 
@@ -216,16 +216,15 @@ class DoctrinePaginatorTest extends TestCase
 
         $query->setMaxResults(2);
 
-        $paginator = DoctrinePaginatorBuilder::new()
-            ->setQuery($query)
+        $paginator = DoctrinePaginatorBuilder::fromQuery($query)
             ->setDiscriminators([
                 new PageDiscriminator('created_at', 'createdAt'),
                 new PageDiscriminator('id', 'id'),
             ])
-            ->setHydrationMode(Query::HYDRATE_ARRAY)
+            ->withHydrationMode(Query::HYDRATE_ARRAY)
             ->build();
 
-        $pages = iterator_to_array($paginator->getIterator());
+        $pages = [...$paginator];
 
         self::assertCount(2, $pages);
 
@@ -260,11 +259,11 @@ class DoctrinePaginatorTest extends TestCase
             ')
             ->setMaxResults(2);
 
-        new DoctrinePaginator($query, []);
+        new DoctrinePaginator(new TypedQuery($query), []);
     }
 
     /**
-     * @dataProvider dataQueryMustBeOrdered
+     * @dataProvider             invalidQueryProvider
      */
     public function testQueryMustBeOrdered(string $dql): void
     {
@@ -275,8 +274,7 @@ class DoctrinePaginatorTest extends TestCase
 
         $query = $em->createQuery($dql)->setMaxResults(2);
 
-        DoctrinePaginatorBuilder::new()
-            ->setQuery($query)
+        DoctrinePaginatorBuilder::fromQuery($query)
             ->setDiscriminators([
                 new PageDiscriminator('id', 'id'),
             ])
@@ -284,9 +282,9 @@ class DoctrinePaginatorTest extends TestCase
     }
 
     /**
-     * @phpstan-return array<string,array{string}>
+     * @return array<array-key,array{string}>
      */
-    public function dataQueryMustBeOrdered(): array
+    public static function invalidQueryProvider(): array
     {
         return [
             'simple query' => ['
@@ -307,30 +305,7 @@ class DoctrinePaginatorTest extends TestCase
 
     private function createEntityManager(): EntityManager
     {
-        if (file_exists(self::DB)) {
-            unlink(self::DB);
-        }
-
-        $config = Setup::createAnnotationMetadataConfiguration(
-            [__DIR__.'/Data'],
-            true,
-            null,
-            null,
-            false
-        );
-
-        $conn = [
-            'driver' => 'pdo_sqlite',
-            'path' => self::DB,
-        ];
-
-        $em = EntityManager::create($conn, $config);
-
-        $metadatas = $em->getMetadataFactory()->getAllMetadata();
-        $schemaTool = new SchemaTool($em);
-        $schemaTool->createSchema($metadatas);
-
-        return $em;
+        return require __DIR__ . '/object-manager.php';
     }
 
     /**

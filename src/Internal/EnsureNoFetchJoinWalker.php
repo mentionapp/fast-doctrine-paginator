@@ -5,6 +5,7 @@ namespace Mention\FastDoctrinePaginator\Internal;
 use Doctrine\ORM\Mapping\ClassMetadata;
 use Doctrine\ORM\Query\AST;
 use Doctrine\ORM\Query\AST\Join;
+use Doctrine\ORM\Query\AST\PartialObjectExpression;
 use Doctrine\ORM\Query\QueryException;
 use Doctrine\ORM\Query\SqlWalker;
 
@@ -18,7 +19,11 @@ final class EnsureNoFetchJoinWalker extends SqlWalker
     public const HINT_DISTINCT = self::class.'.distinct';
 
     /**
-     * @var array<string,array<string,mixed>>
+     * @var array<array-key,array{
+     *     class: ClassMetadata<object>,
+     *     dqlAlias: string,
+     *     resultAlias: ?string,
+     * }>
      */
     private $selectedClasses;
 
@@ -59,7 +64,15 @@ final class EnsureNoFetchJoinWalker extends SqlWalker
                     $dqlAlias = $expr;
                 }
 
+                assert(is_string($dqlAlias));
+
                 $queryComp = $this->getQueryComponent($dqlAlias);
+                if (!isset($queryComp['metadata'])) {
+                    throw new \Exception(
+                        sprintf('No metadata found for DQL alias: %s', $dqlAlias),
+                    );
+                }
+
                 $class = $queryComp['metadata'];
                 $resultAlias = $selectExpression->fieldIdentificationVariable;
 
@@ -79,7 +92,16 @@ final class EnsureNoFetchJoinWalker extends SqlWalker
     {
         $joinedDqlAlias = $joinAssociationDeclaration->aliasIdentificationVariable;
 
-        $relation = $this->getQueryComponent($joinedDqlAlias)['relation'];
+        $queryComp = $this->getQueryComponent($joinedDqlAlias);
+
+        if (!isset($queryComp['relation'])) {
+            throw new \Exception(
+                sprintf('No relation found for join association: %s', $joinedDqlAlias),
+            );
+        }
+
+        $relation = $queryComp['relation'];
+        assert(class_exists($relation['targetEntity']));
         $targetClass = $this->getEntityManager()->getClassMetadata($relation['targetEntity']);
 
         // Ensure we got the owning side, since it has all mapping info
@@ -95,7 +117,7 @@ final class EnsureNoFetchJoinWalker extends SqlWalker
                     'as collections may be cut in half by the MaxResults '.
                     'constraint. Consider removing this JOIN.',
                     $relation['sourceEntity'],
-                    $relation['fieldName']
+                    $relation['fieldName'],
                 ));
             }
         }

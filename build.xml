@@ -71,7 +71,10 @@
                 checkreturn="true"
         >
             <arg value="analyze"/>
+            <arg value="--memory-limit"/>
+            <arg value="1G"/>
             <arg value="--no-progress"/>
+            <arg value="-v"/>
             <arg path="."/>
         </exec>
     </target>
