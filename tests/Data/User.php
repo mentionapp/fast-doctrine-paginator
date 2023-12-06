@@ -2,10 +2,11 @@
 
 namespace Mention\FastDoctrinePaginator\Tests\Data;
 
+use Doctrine\ORM\Mapping\Id;
 use Doctrine\ORM\Mapping\Column;
 use Doctrine\ORM\Mapping\Entity;
 use Doctrine\ORM\Mapping\GeneratedValue;
-use Doctrine\ORM\Mapping\Id;
+use Mention\FastDoctrinePaginator\Tests\Data\Id as IdObject;
 
 /**
  * @Entity
@@ -37,6 +38,11 @@ class User
     public function getId(): int
     {
         return $this->id;
+    }
+
+    public function getIdObject(): IdObject
+    {
+        return new IdObject($this->id);
     }
 
     public function getCreatedAt(): \DateTimeInterface
