@@ -251,6 +251,9 @@ final class DoctrinePaginator implements PaginatorInterface
      */
     use GeneratorPaginatorTrait;
 
+    /** @var null|(callable(object):scalar) */
+    private static mixed $discriminatorValueMapper = null;
+
     /** @var CursorEncoder */
     private $cursorEncoder;
 
@@ -345,6 +348,12 @@ final class DoctrinePaginator implements PaginatorInterface
         );
     }
 
+    /** @param callable(object):scalar $mapper */
+    public static function setDiscriminatorValueMapper(?callable $mapper): void
+    {
+        self::$discriminatorValueMapper = $mapper;
+    }
+
     /**
      * @param QueryInterface<ItemT>                                        $query
      * @param array<array-key,callable(mixed):(scalar|\DateTimeInterface)> $attrs
@@ -372,8 +381,12 @@ final class DoctrinePaginator implements PaginatorInterface
                 $from = array_map(function ($attr) use ($result) {
                     $value = $attr($result);
 
-                    if ($value instanceof \DateTimeInterface) {
-                        $value = $value->format('Y-m-d H:i:s');
+                    if (is_object($value)) {
+                        if (self::$discriminatorValueMapper !== null) {
+                            $value = (self::$discriminatorValueMapper)($value);
+                        } elseif ($value instanceof \DateTimeInterface) {
+                            $value = $value->format('Y-m-d H:i:s');
+                        }
                     }
 
                     return (string) $value;

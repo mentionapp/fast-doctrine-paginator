@@ -11,6 +11,7 @@ use Mention\FastDoctrinePaginator\DoctrinePaginator;
 use Mention\FastDoctrinePaginator\DoctrinePaginatorBuilder;
 use Mention\FastDoctrinePaginator\Internal\TypedQuery;
 use Mention\FastDoctrinePaginator\PageDiscriminator;
+use Mention\FastDoctrinePaginator\Tests\Data\Id;
 use Mention\FastDoctrinePaginator\Tests\Data\User;
 use Mention\WebBundle\Tests\WebTestCase;
 use PHPUnit\Framework\TestCase;
@@ -132,6 +133,71 @@ class DoctrinePaginatorTest extends TestCase
         );
     }
 
+    public function testCustomDiscriminatorValueMapper(): void
+    {
+        DoctrinePaginator::setDiscriminatorValueMapper(function ($value) {
+            if ($value instanceof Id) {
+                return $value->value;
+            }
+
+            if ($value instanceof \DateTimeInterface) {
+                return $value->format('Y-m-d H:i:s');
+            }
+
+            assert($value instanceof \Stringable);
+
+            return (string) $value;
+        });
+
+        $em = $this->createEntityManager();
+
+        $this->insertMulti(
+            $em,
+            'User',
+            [
+                ['id' => 2, 'createdAt' => '2018-01-01 00:00:00'],
+                ['id' => 3, 'createdAt' => '2018-01-02 00:00:00'],
+                ['id' => 4, 'createdAt' => '2018-01-03 00:00:00'],
+                ['id' => 5, 'createdAt' => '2018-01-04 00:00:00'],
+            ]
+        );
+
+        $query = $em->createQuery('
+            SELECT u
+            FROM   Mention\FastDoctrinePaginator\Tests\Data\User u
+            WHERE  u.id > :id
+            ORDER  BY u.id
+        ');
+
+        $query->setMaxResults(2);
+
+        $paginator = DoctrinePaginatorBuilder::fromQuery($query)
+            ->setDiscriminators([
+                new PageDiscriminator('id', 'getIdObject'),
+            ])
+            ->withHydrationMode(Query::HYDRATE_OBJECT)
+            ->build();
+
+        $pages = [...$paginator];
+
+        self::assertCount(2, $pages);
+
+        self::assertEquals(
+            [
+                new User(2, new \DateTime('2018-01-01')),
+                new User(3, new \DateTime('2018-01-02')),
+            ],
+            $pages[0]()
+        );
+
+        self::assertEquals(
+            [
+                new User(4, new \DateTime('2018-01-03')),
+                new User(5, new \DateTime('2018-01-04')),
+            ],
+            $pages[1]()
+        );
+    }
 
     public function testResumeAtCursor(): void
     {
