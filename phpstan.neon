@@ -1,21 +1,15 @@
-includes:
-    - vendor/phpstan/phpstan-beberlei-assert/extension.neon
-    - vendor/phpstan/phpstan-mockery/extension.neon
-    - vendor/phpstan/phpstan-strict-rules/rules.neon
-
 parameters:
-    level: 8
-    excludes_analyse:
-        - %rootDir%/../../../vendor/*
+    level: 9
+    scanDirectories:
+        - src
+        - tests
+    excludePaths:
+        - vendor
+    doctrine:
+        objectManagerLoader: tests/object-manager.php
     ignoreErrors:
-        -
-            message: '#Variable method call on object.#'
-            path: src/PageDiscriminator.php
-            count: 1
-        -
-            # Doctrine 2.5 type hint issue
-            message: '#Call to static method Assert\\Assertion::notNull.. with int and .Query must have a…. will always evaluate to true#'
-            path: src/DoctrinePaginator.php
-            count: 1
-    reportUnmatchedIgnoredErrors: false
-
+        # Property is actually read in a trait
+        - message: '#Property Mention\\FastDoctrinePaginator\\DoctrinePaginator::\$generator is never read, only written#'
+          path: 'src/DoctrinePaginator.php'
+        - message: '#Method Mention\\FastDoctrinePaginator\\Internal\\TypedQuery::execute\(\) should return array<ItemT> but returns mixed#'
+          path: 'src/Internal/TypedQuery.php'

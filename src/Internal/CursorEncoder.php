@@ -25,7 +25,7 @@ final class CursorEncoder
      */
     public function __construct(
         string $sql,
-        array $attrKeys
+        array $attrKeys,
     ) {
         $this->sqlChecksum = $this->sqlChecksum($sql);
         $this->attrChecksum = $this->attrChecksum($attrKeys);
@@ -57,6 +57,10 @@ final class CursorEncoder
             throw new InvalidCursorException('Invalid cursor: Invalid format', 0, $e);
         }
 
+        if (!is_array($attrs)) {
+            throw new InvalidCursorException('Invalid cursor: Invalid format');
+        }
+
         if (!hash_equals($this->sqlChecksum, $sqlChecksum)) {
             throw new InvalidCursorException('Invalid cursor: This cursor was not generated for this query (or it has changed)');
         }
@@ -69,12 +73,7 @@ final class CursorEncoder
             throw new InvalidCursorException('Invalid cursor: Invalid number of query attributes');
         }
 
-        $from = array_combine($this->attrKeys, $attrs);
-        if ($from === false) {
-            throw new InvalidCursorException('Invalid cursor: Unexpected error');
-        }
-
-        return $from;
+        return array_combine($this->attrKeys, $attrs);
     }
 
     /**
@@ -87,7 +86,7 @@ final class CursorEncoder
         return base64_encode(
             $this->sqlChecksum
             .$this->attrChecksum
-            .JsonUtils::encode(array_values($from))
+            .JsonUtils::encode(array_values($from)),
         );
     }
 

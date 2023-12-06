@@ -3,15 +3,15 @@
 namespace Mention\FastDoctrinePaginator;
 
 use Assert\Assertion;
-use Doctrine\ORM\AbstractQuery;
 use Doctrine\ORM\Query;
 use Mention\FastDoctrinePaginator\Internal\CursorEncoder;
+use Mention\FastDoctrinePaginator\Internal\EnsureMaxResultWalker;
 use Mention\FastDoctrinePaginator\Internal\EnsureNoFetchJoinWalker;
 use Mention\FastDoctrinePaginator\Internal\EnsureOrderByWalker;
+use Mention\Paginator\GeneratorPaginatorTrait;
 use Mention\Paginator\PaginatorInterface;
 use Mention\Paginator\PaginatorItem;
 use Mention\Paginator\PaginatorPage;
-use Mention\Paginator\PaginatorPageInterface;
 
 /**
  * DoctrinePaginator paginates a Query.
@@ -20,8 +20,20 @@ use Mention\Paginator\PaginatorPageInterface;
  *
  * See PaginatorInterface
  *
- * When paginating large queries, it's recommended to clear entity
- * managers between pages.
+ * ## Memory usage
+ *
+ * When iterating over many pages of results, it is important to clear entity
+ * managers between pages:
+ *
+ * foreach ($paginator as $page) {
+ *     // $page is a PaginatorPageInterface
+ *     foreach ($page->items() as $item) {
+ *         // ...
+ *     }
+ *     $em->clear(); // or other higher level methods to achieve this
+ * }
+ *
+ * See rationale later in this doc block.
  *
  * ## General principle
  *
@@ -44,7 +56,7 @@ use Mention\Paginator\PaginatorPageInterface;
  *
  * - The column(s) used for discrimination must be unique (if it's not the case,
  *   a combination of multiple discriminators must be used)
- * - The query must be ordered by the discrimination columns
+ * - The query must be ordered by all the discrimination columns
  * - The query must have a WHERE clause that selects only rows whose
  *   discriminators are higher than the higher discriminators of the previous
  *   page.
@@ -87,7 +99,7 @@ use Mention\Paginator\PaginatorPageInterface;
  *
  * Note the ORDER clause, that orders by our discriminator.
  *
- * Note the WHERE clause, that discriminates by our discriminator. We use the
+ * Note the WHERE clause, that filters by our discriminator. We use the
  * query parameter :idCursor. The value of this parameter is automatically
  * set by the paginator. By default, it's set to `0` when requesting the
  * first page, and then it's automatically updated to the value found in the
@@ -103,10 +115,9 @@ use Mention\Paginator\PaginatorPageInterface;
  * // Max results per page
  * $query->setMaxResults(3);
  *
- * $paginator = DoctrinePaginatorBuilder::new()
- *     ->setQuery($query)
+ * $paginator = DoctrinePaginatorBuilder::fromQuery($query)
  *     ->setDiscriminators([
- *         new PageDiscriminatorInterface('idCursor', 'getId'),
+ *         new PageDiscriminator('idCursor', 'getId'),
  *     ])
  *     ->build();
  *
@@ -114,7 +125,7 @@ use Mention\Paginator\PaginatorPageInterface;
  *     foreach ($page() as $result) {
  *         // ...
  *     }
- *     $em->clear();
+ *     $entityManager->clear();
  * }
  *
  * The first page will return this:
@@ -159,8 +170,8 @@ use Mention\Paginator\PaginatorPageInterface;
  * $paginator = (new DoctrinePaginatorBuilder())
  *     ->setQuery($query)
  *     ->setDiscriminators([
- *         new PageDiscriminatorInterface('nameCursor', 'getName'),
- *         new PageDiscriminatorInterface('idCursor', 'getId'),
+ *         new PageDiscriminator('nameCursor', 'getName'),
+ *         new PageDiscriminator('idCursor', 'getId'),
  *     ])
  *     ->build();
  *
@@ -185,7 +196,7 @@ use Mention\Paginator\PaginatorPageInterface;
  *
  * ## Batch jobs
  *
- * This paginator is particularly suitable for batching, because it give the
+ * This paginator is particularly suitable for batching, because it gives the
  * user an opportunity to act before and after every page.
  *
  * For example, the entity manager can be safely cleared between two pages:
@@ -203,121 +214,174 @@ use Mention\Paginator\PaginatorPageInterface;
  * it provides cursors for the pages and items:
  *
  * foreach ($paginator as $page) {
- *     // $page is a PaginatorPageInterface
- *     // Get the cursor for the first item of the page:
- *     // $startCursor = $page->firstCursor();
- *     // Get the cursor for the last item of the page:
- *     // $startCursor = $page->endCursor();
- *     foreach ($page->items() as $item) {
- *         // Get the cursor for this item:
- *         // $item->getCursor();
- *     }
- * }
+ *      // $page is a PaginatorPageInterface
+ *      // Get the cursor for the first item of the page:
+ *      // $startCursor = $page->firstCursor();
+ *      // Get the cursor for the last item of the page:
+ *      // $startCursor = $page->endCursor();
+ *      foreach ($page->items() as $item) {
+ *          // Get the cursor for this item:
+ *          // $item->getCursor();
+ *      }
+ *  }
+ *
+ * ## About memory usage
+ *
+ * DoctrinePaginator does not clear entity managers automatically between pages
+ * as this would implicitly detach all entities (including entities fetched by
+ * other means), which can lead to issues such as state corruptions (in the
+ * worst case) or Doctrine errors that are difficult to debug. Forcing users to
+ * do it explicitly ensures that they are aware of it.
+ *
+ * In the current design it is possible that users forget about clearing
+ * entity managers, which can lead to OOMs. This is a less critical issue as
+ * this does not lead to difficult Doctrine exceptions or state corruptions due
+ * to unsuspectingly handling detached entities.
+ *
+ * @template ItemT
+ *
+ * @implements PaginatorInterface<ItemT>
  */
 final class DoctrinePaginator implements PaginatorInterface
 {
+    /**
+     * implementation of current()/key()/next()/rewind()/valid().
+     *
+     * @use GeneratorPaginatorTrait<ItemT>
+     */
+    use GeneratorPaginatorTrait;
+
     /** @var CursorEncoder */
     private $cursorEncoder;
 
-    /** @var \Iterator<int, PaginatorPageInterface> */
-    private $generator;
+    /** @var \Generator<int,PaginatorPage<ItemT>> */
+    private \Generator $generator;
 
     /**
-     * @param PageDiscriminatorInterface[] $discriminators
-     * @param int                          $hydrationMode  one of:
-     *                                                     - Query::HYDRATE_OBJECT
-     *                                                     - Query::HYDRATE_ARRAY
-     *                                                     - Query::HYDRATE_SCALAR
+     * @param QueryInterface<ItemT>        $query
+     * @param array<int,PageDiscriminator> $discriminators
      * @param string|null                  $cursor         A cursor obtained from PaginatorPageInterface::getCursor()
      */
     public function __construct(
-        AbstractQuery $query,
+        QueryInterface $query,
         array $discriminators,
-        int $hydrationMode = Query::HYDRATE_OBJECT,
-        ?string $cursor = null
+        ?string $cursor = null,
     ) {
         Assertion::minCount(
             $discriminators,
             1,
-            'DoctrinePaginator must have at least one discriminator, none given'
+            'DoctrinePaginator must have at least one discriminator, none given',
         );
-
-        if ($query instanceof Query) {
-            Assertion::notNull(
-                $query->getMaxResults(),
-                'Query must have a defined max number of results (Query::setMaxResults()). This defines the number of elements per page.'
-            );
-        }
 
         $discriminators = $this->reindexDiscriminators($discriminators);
 
-        $attrs = [];
-        foreach ($discriminators as $key => $discriminator) {
-            $attrs[$key] = $discriminator->getValueResolver($hydrationMode);
-        }
+        $hydrationMode = $query->getHydrationMode();
+        $attrs = array_map(
+            function (PageDiscriminator $discr) use ($hydrationMode) {
+                $attr = $discr->getAttribute();
 
-        $this->addSanityTreeWalkers($query);
+                if (is_string($attr)) {
+                    if ($hydrationMode === Query::HYDRATE_OBJECT) {
+                        return function ($entity) use ($attr) {
+                            $fetch = [$entity, $attr];
+                            assert(is_callable($fetch));
+
+                            return $fetch();
+                        };
+                    }
+                    if ($hydrationMode === Query::HYDRATE_ARRAY ||
+                        $hydrationMode === Query::HYDRATE_SCALAR
+                    ) {
+                        return function ($row) use ($attr) {
+                            assert(is_array($row) && isset($row[$attr]));
+
+                            return $row[$attr];
+                        };
+                    }
+                }
+                if (is_callable($attr)) {
+                    return $attr;
+                }
+
+                // PageDiscriminator wouldn't allow this to happen
+                throw new \Exception();
+            },
+            $discriminators,
+        );
+
+        // Add a tree walker, for sanity checks
+        $treeWalkers = $query->getHint(Query::HINT_CUSTOM_TREE_WALKERS);
+        if (is_array($treeWalkers)) {
+            $treeWalkers[] = EnsureNoFetchJoinWalker::class;
+            $treeWalkers[] = EnsureOrderByWalker::class;
+            $treeWalkers[] = EnsureMaxResultWalker::class;
+        } else {
+            $treeWalkers = [
+                EnsureNoFetchJoinWalker::class,
+                EnsureOrderByWalker::class,
+                EnsureMaxResultWalker::class,
+            ];
+        }
+        $query->setHint(Query::HINT_CUSTOM_TREE_WALKERS, $treeWalkers);
+
+        $sql = $query->getSQL();
+        assert(is_string($sql));
 
         $this->cursorEncoder = new CursorEncoder(
-            $query->getSQL(),
-            array_keys($discriminators)
+            $sql,
+            array_keys($discriminators),
         );
 
         $from = null === $cursor
-            ? array_map(function (PageDiscriminatorInterface $discriminator) {
+            ? array_map(function (PageDiscriminator $discriminator) {
                 return $discriminator->getDefaultValue();
             }, $discriminators)
             : $this->cursorEncoder->decode($cursor);
 
         $this->generator = $this->createGenerator(
             $query,
-            $hydrationMode,
             $attrs,
-            $from
+            $from,
         );
     }
 
     /**
-     * Implementation of IteratorAggregate::getIterator().
+     * @param QueryInterface<ItemT>                                        $query
+     * @param array<array-key,callable(mixed):(scalar|\DateTimeInterface)> $attrs
+     * @param array<array-key,scalar|\DateTimeInterface>                   $from
      *
-     * Foreach calls this method when iterating over a DoctrinePaginator.
-     *
-     * {@inheritdoc}
-     */
-    public function getIterator()
-    {
-        return $this->generator;
-    }
-
-    /**
-     * @param array<string,callable(mixed):(scalar|\DateTimeInterface)> $attrs
-     * @param mixed[]                                                   $from
-     *
-     * @phpstan-return \Generator<int, PaginatorPageInterface, mixed, mixed>
+     * @return \Generator<int,PaginatorPage<ItemT>>
      */
     private function createGenerator(
-        AbstractQuery $query,
-        int $hydrationMode,
+        QueryInterface $query,
         array $attrs,
-        array $from
+        array $from,
     ) {
         while (true) {
             foreach ($from as $param => $value) {
                 $query->setParameter($param, $value);
             }
 
-            $results = $query->execute(null, $hydrationMode);
+            $results = $query->execute();
             if (count($results) === 0) {
                 return;
             }
 
             $items = [];
             foreach ($results as $result) {
-                $from = $this->getFrom($attrs, $result);
-                $items[] = new DoctrinePaginatorItem(
-                    $this->cursorEncoder,
-                    $from,
-                    $result
+                $from = array_map(function ($attr) use ($result) {
+                    $value = $attr($result);
+
+                    if ($value instanceof \DateTimeInterface) {
+                        $value = $value->format('Y-m-d H:i:s');
+                    }
+
+                    return (string) $value;
+                }, $attrs);
+
+                $items[] = new PaginatorItem(
+                    $this->cursorEncoder->encode($from),
+                    $result,
                 );
             }
 
@@ -326,9 +390,9 @@ final class DoctrinePaginator implements PaginatorInterface
     }
 
     /**
-     * @param PageDiscriminatorInterface[] $discriminators
+     * @param array<int,PageDiscriminator> $discriminators
      *
-     * @phpstan-return array<string,PageDiscriminatorInterface>
+     * @return array<array-key,PageDiscriminator>
      */
     private function reindexDiscriminators(array $discriminators): array
     {
@@ -338,50 +402,5 @@ final class DoctrinePaginator implements PaginatorInterface
         }
 
         return $ret;
-    }
-
-    private function addSanityTreeWalkers(AbstractQuery $query): void
-    {
-        $treeWalkers = $query->getHint(Query::HINT_CUSTOM_TREE_WALKERS);
-
-        if (!is_array($treeWalkers)) {
-            $treeWalkers = [];
-        }
-
-        $treeWalkers[] = EnsureNoFetchJoinWalker::class;
-        $treeWalkers[] = EnsureOrderByWalker::class;
-
-        $query->setHint(Query::HINT_CUSTOM_TREE_WALKERS, $treeWalkers);
-    }
-
-    /**
-     * @param array<string,callable(mixed):mixed> $attrs
-     * @param mixed[]|object                      $result
-     *
-     * @return array<string,scalar>
-     */
-    private function getFrom(array $attrs, $result): array
-    {
-        $from = [];
-
-        foreach ($attrs as $key => $attr) {
-            $value = $attr($result);
-
-            if ($value instanceof \DateTimeInterface) {
-                $value = $value->format('Y-m-d H:i:s');
-            }
-
-            Assertion::scalar(
-                $value,
-                sprintf(
-                    'Value for discriminator "%s" must be a scalar, got a "%%s"',
-                    $key
-                )
-            );
-
-            $from[$key] = $value;
-        }
-
-        return $from;
     }
 }

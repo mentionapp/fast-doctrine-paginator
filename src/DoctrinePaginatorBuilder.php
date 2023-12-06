@@ -2,37 +2,47 @@
 
 namespace Mention\FastDoctrinePaginator;
 
-use Assert\Assertion;
 use Doctrine\ORM\AbstractQuery;
 use Doctrine\ORM\Query;
+use Mention\FastDoctrinePaginator\Internal\TypedQuery;
 
 /**
+ * @template ItemT
+ *
  * @see DoctrinePaginator
  */
 final class DoctrinePaginatorBuilder
 {
-    /** @var AbstractQuery|null */
-    private $query;
+    /** @var QueryInterface<ItemT> */
+    private QueryInterface $query;
 
-    /** @var PageDiscriminator[] */
-    private $discriminators = [];
+    /** @var array<int,PageDiscriminator> */
+    private array $discriminators;
 
-    /** @var int */
-    private $hydrationMode = Query::HYDRATE_OBJECT;
+    private ?string $cursor;
 
-    /** @var string|null */
-    private $cursor;
-
-    public static function new(): self
-    {
-        return new self();
-    }
-
-    public function setQuery(AbstractQuery $query): self
+    /**
+     * @param QueryInterface<ItemT>        $query
+     * @param array<int,PageDiscriminator> $discriminators
+     * @param string|null                  $cursor
+     */
+    private function __construct(QueryInterface $query, array $discriminators, ?string $cursor)
     {
         $this->query = $query;
+        $this->discriminators = $discriminators;
+        $this->cursor = $cursor;
+    }
 
-        return $this;
+    /**
+     * @template QueryItemT
+     *
+     * @param AbstractQuery<QueryItemT> $query
+     *
+     * @return self<QueryItemT>
+     */
+    public static function fromQuery(AbstractQuery $query): self
+    {
+        return new self(new TypedQuery($query), [], null);
     }
 
     /**
@@ -41,6 +51,8 @@ final class DoctrinePaginatorBuilder
      * @see DoctrinePaginator
      *
      * @param PageDiscriminator[] $discriminators
+     *
+     * @return self<ItemT>
      */
     public function setDiscriminators(array $discriminators): self
     {
@@ -54,16 +66,17 @@ final class DoctrinePaginatorBuilder
      *
      * This is Query::HYDRATE_OBJECT by default.
      *
-     * @param mixed $hydrationMode one of:
-     *                             - Query::HYDRATE_OBJECT
-     *                             - Query::HYDRATE_ARRAY
-     *                             - Query::HYDRATE_SCALAR
+     * @param Query::HYDRATE_* $hydrationMode
+     *
+     * @return self<mixed>
      */
-    public function setHydrationMode($hydrationMode): self
+    public function withHydrationMode($hydrationMode): self
     {
-        $this->hydrationMode = $hydrationMode;
-
-        return $this;
+        return new self(
+            $this->query->withHydrationMode($hydrationMode),
+            $this->discriminators,
+            $this->cursor,
+        );
     }
 
     /**
@@ -73,6 +86,8 @@ final class DoctrinePaginatorBuilder
      *
      * Use Mention\CoreBundle\Paginator\PaginatorPageInterface::endCursor()
      * to get a valid cursor.
+     *
+     * @return self<ItemT>
      */
     public function setCursor(?string $cursor): self
     {
@@ -81,15 +96,15 @@ final class DoctrinePaginatorBuilder
         return $this;
     }
 
+    /**
+     * @return DoctrinePaginator<ItemT>
+     */
     public function build(): DoctrinePaginator
     {
-        Assertion::notNull($this->query);
-
         return new DoctrinePaginator(
             $this->query,
             $this->discriminators,
-            $this->hydrationMode,
-            $this->cursor
+            $this->cursor,
         );
     }
 }
